@@ -7,22 +7,8 @@ fn main() {
     let gravity_model = gravity_model::GravityModel {};
     let mass = 1.0;
     let inertia = nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142);
-    let initial_state = nalgebra::SVector::<f64, 13>::from([
-        0.0,
-        0.0,
-        0.0,
-        30.0 * std::f64::consts::PI / 180.0,
-        0.0,
-        0.0,
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ]);
-    let mut body = RigidBody::new(gravity_model, mass, inertia, initial_state);
+    let mut body = RigidBody::new(gravity_model, mass, inertia);
+    body.set_state(3, 30.0 * std::f64::consts::PI / 180.0);
     body.set_output_file("output.csv");
 
     body.simulate(

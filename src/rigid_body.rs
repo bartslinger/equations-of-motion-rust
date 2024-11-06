@@ -18,33 +18,41 @@
 pub type State = nalgebra::SVector<f64, 13>;
 pub type StateDerivative = nalgebra::SVector<f64, 13>;
 
-pub trait DynamicsModel {
+pub trait DynamicsModel<const O: usize> {
     type ControlInput;
+
+    fn output_names() -> [&'static str; O];
     fn compute_forces_and_moments(
         &self,
         state: &State,
         rotation_matrix: &nalgebra::Matrix3<f64>,
         control_input: &Self::ControlInput,
-    ) -> (f64, f64, f64, f64, f64, f64);
+    ) -> (f64, f64, f64, f64, f64, f64, nalgebra::SVector<f64, O>);
 }
 
-pub struct RigidBody<M: DynamicsModel> {
+pub struct RigidBody<M, const O: usize>
+where
+    M: DynamicsModel<O>,
+{
     mass: f64,
     inertia: nalgebra::Matrix3<f64>,
     inertia_inverse: nalgebra::Matrix3<f64>,
     dynamics_model: M,
     state: State,
+    additional_outputs: nalgebra::SVector<f64, O>,
     output_file: Option<csv::Writer<std::fs::File>>,
 }
 
-impl<M: DynamicsModel> RigidBody<M> {
-    pub fn new(
-        dynamics_model: M,
-        mass: f64,
-        inertia: nalgebra::Matrix3<f64>,
-        initial_state: State,
-    ) -> Self {
+impl<M, const O: usize> RigidBody<M, O>
+where
+    M: DynamicsModel<O>,
+{
+    pub fn new(dynamics_model: M, mass: f64, inertia: nalgebra::Matrix3<f64>) -> Self {
         let inertia_inverse = inertia.try_inverse().unwrap();
+
+        let initial_state = nalgebra::SVector::<f64, 13>::from([
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ]);
 
         Self {
             mass,
@@ -52,6 +60,7 @@ impl<M: DynamicsModel> RigidBody<M> {
             inertia_inverse,
             dynamics_model,
             state: initial_state,
+            additional_outputs: nalgebra::SVector::<f64, O>::zeros(),
             output_file: None,
         }
     }
@@ -61,34 +70,44 @@ impl<M: DynamicsModel> RigidBody<M> {
             panic!("Output file is already set");
         }
         let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
-        csv_writer
-            .write_record(&[
-                "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
-            ])
-            .unwrap();
+        let additional_outputs = M::output_names();
+        let mut headers = vec![
+            "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
+        ];
+        headers.extend(additional_outputs.iter());
+        csv_writer.write_record(&headers).unwrap();
         self.output_file = Some(csv_writer);
+    }
+
+    pub fn set_state(&mut self, index: usize, value: f64) {
+        self.state[index] = value;
     }
 
     fn write_csv_line(&mut self, t: u128) {
         if let Some(ref mut csv_writer) = &mut self.output_file {
-            csv_writer
-                .write_record(&[
-                    (t as f64 * 0.001).to_string(),
-                    self.state[0].to_string(),
-                    self.state[1].to_string(),
-                    self.state[2].to_string(),
-                    self.state[3].to_string(),
-                    self.state[4].to_string(),
-                    self.state[5].to_string(),
-                    self.state[6].to_string(),
-                    self.state[7].to_string(),
-                    self.state[8].to_string(),
-                    self.state[9].to_string(),
-                    self.state[10].to_string(),
-                    self.state[11].to_string(),
-                    self.state[12].to_string(),
-                ])
-                .unwrap();
+            // modify this with additional outputs
+            let original_record = [
+                (t as f64 * 0.001),
+                self.state[0],
+                self.state[1],
+                self.state[2],
+                self.state[3],
+                self.state[4],
+                self.state[5],
+                self.state[6],
+                self.state[7],
+                self.state[8],
+                self.state[9],
+                self.state[10],
+                self.state[11],
+                self.state[12],
+            ];
+            let record = original_record
+                .iter()
+                .chain(self.additional_outputs.iter())
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>();
+            csv_writer.write_record(record).unwrap();
         }
     }
 
@@ -100,7 +119,7 @@ impl<M: DynamicsModel> RigidBody<M> {
         &self,
         state: &State,
         control_input: &M::ControlInput,
-    ) -> StateDerivative {
+    ) -> (StateDerivative, nalgebra::SVector<f64, O>) {
         let (u, v, w) = (state[0], state[1], state[2]);
         let (p, q, r) = (state[3], state[4], state[5]);
         let (q0, q1, q2, q3) = (state[6], state[7], state[8], state[9]);
@@ -125,7 +144,7 @@ impl<M: DynamicsModel> RigidBody<M> {
 
         let velocity_ned = rotation_matrix * velocity_body;
 
-        let (force_x, force_y, force_z, moment_x, moment_y, moment_z) = self
+        let (force_x, force_y, force_z, moment_x, moment_y, moment_z, additional_outputs) = self
             .dynamics_model
             .compute_forces_and_moments(state, &rotation_matrix, control_input);
         let moments = nalgebra::Vector3::new(moment_x, moment_y, moment_z);
@@ -152,15 +171,21 @@ impl<M: DynamicsModel> RigidBody<M> {
             u_dot, v_dot, w_dot, p_dot, q_dot, r_dot, q0_dot, q1_dot, q2_dot, q3_dot, pn_dot,
             pe_dot, pd_dot,
         ]);
-        state_derivative
+        (state_derivative, additional_outputs)
     }
 
-    fn runge_kutta_propagation(&self, control_input: &M::ControlInput, dt: f64) -> State {
-        let k1 = self.compute_state_derivative(&self.state, control_input);
-        let k2 = self.compute_state_derivative(&(self.state + k1 * dt / 2.0), control_input);
-        let k3 = self.compute_state_derivative(&(self.state + k2 * dt / 2.0), control_input);
-        let k4 = self.compute_state_derivative(&(self.state + k3 * dt), control_input);
-        self.state + (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt / 6.0
+    fn runge_kutta_propagation(
+        &self,
+        control_input: &M::ControlInput,
+        dt: f64,
+    ) -> (State, nalgebra::SVector<f64, O>) {
+        let (k1, o1) = self.compute_state_derivative(&self.state, control_input);
+        let (k2, o2) = self.compute_state_derivative(&(self.state + k1 * dt / 2.0), control_input);
+        let (k3, o3) = self.compute_state_derivative(&(self.state + k2 * dt / 2.0), control_input);
+        let (k4, o4) = self.compute_state_derivative(&(self.state + k3 * dt), control_input);
+        let next_state = self.state + (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt / 6.0;
+        let additional_outputs = (o1 + 2.0 * o2 + 2.0 * o3 + o4) / 6.0;
+        (next_state, additional_outputs)
     }
 
     fn normalize_quaternion(&mut self) {
@@ -173,7 +198,7 @@ impl<M: DynamicsModel> RigidBody<M> {
     }
 
     pub fn step(&mut self, control_input: &M::ControlInput, dt: f64) {
-        self.state = self.runge_kutta_propagation(control_input, dt);
+        (self.state, self.additional_outputs) = self.runge_kutta_propagation(control_input, dt);
         self.normalize_quaternion();
     }
 
