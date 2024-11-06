@@ -42,7 +42,6 @@ where
     inertia: nalgebra::Matrix3<f64>,
     inertia_inverse: nalgebra::Matrix3<f64>,
     dynamics_model: M,
-    output_file: Option<csv::Writer<std::fs::File>>,
 }
 
 impl<M, const O: usize> RigidBody<M, O>
@@ -57,63 +56,6 @@ where
             inertia,
             inertia_inverse,
             dynamics_model,
-            output_file: None,
-        }
-    }
-
-    pub fn set_output_file(&mut self, file_name: &str) {
-        if self.output_file.is_some() {
-            panic!("Output file is already set");
-        }
-        let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
-        let additional_outputs = M::output_names();
-        let mut headers = vec![
-            "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd", "Fx",
-            "Fy", "Fz", "Mx", "My", "Mz",
-        ];
-        headers.extend(additional_outputs.iter());
-        csv_writer.write_record(&headers).unwrap();
-        self.output_file = Some(csv_writer);
-    }
-
-    fn write_csv_line(
-        &mut self,
-        t: u128,
-        state: State,
-        forces: Forces,
-        moments: Moments,
-        additional_outputs: nalgebra::SVector<f64, O>,
-    ) {
-        if let Some(ref mut csv_writer) = &mut self.output_file {
-            // modify this with additional outputs
-            let original_record = [
-                (t as f64 * 0.001),
-                state[0],
-                state[1],
-                state[2],
-                state[3],
-                state[4],
-                state[5],
-                state[6],
-                state[7],
-                state[8],
-                state[9],
-                state[10],
-                state[11],
-                state[12],
-                forces[0],
-                forces[1],
-                forces[2],
-                moments[0],
-                moments[1],
-                moments[2],
-            ];
-            let record = original_record
-                .iter()
-                .chain(additional_outputs.iter())
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>();
-            csv_writer.write_record(record).unwrap();
         }
     }
 
@@ -214,20 +156,53 @@ where
         &mut self,
         duration: std::time::Duration,
         dt: std::time::Duration,
+        initial_velocity: nalgebra::Vector3<f64>,
+        initial_angular_velocity: nalgebra::Vector3<f64>,
+        initial_rotation: nalgebra::Vector3<f64>,
+        initial_position: nalgebra::Vector3<f64>,
         control_input: F,
+        output_file_name: Option<&str>,
     ) where
         F: Fn(u128) -> M::ControlInput,
     {
+        let mut csv_writer = output_file_name.map(|file_name| {
+            let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
+            let additional_outputs = M::output_names();
+            let mut headers = vec![
+                "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
+                "Fx", "Fy", "Fz", "Mx", "My", "Mz",
+            ];
+            headers.extend(additional_outputs.iter());
+            csv_writer.write_record(&headers).unwrap();
+            csv_writer
+        });
+
         let initial_state = nalgebra::SVector::<f64, 13>::from([
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            initial_velocity[0],
+            initial_velocity[1],
+            initial_velocity[2],
+            initial_angular_velocity[0],
+            initial_angular_velocity[1],
+            initial_angular_velocity[2],
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            initial_position[0],
+            initial_position[1],
+            initial_position[2],
         ]);
 
         let steps = duration.as_millis() / dt.as_millis();
-        let (mut state, mut forces, mut moments, mut additional_outputs) =
-            self.runge_kutta_propagation(&initial_state, &control_input(0), dt.as_secs_f64());
+        let mut state = initial_state;
+        let (_, mut forces, mut moments, mut additional_outputs) =
+            self.compute_state_derivative(&initial_state, &control_input(0));
+
         for i in 0..=steps {
             let t = i * dt.as_millis();
-            self.write_csv_line(t, state, forces, moments, additional_outputs);
+            if let Some(ref mut csv_writer) = csv_writer {
+                write_csv_line(csv_writer, t, state, forces, moments, additional_outputs);
+            }
             let u = control_input(t);
             (state, forces, moments, additional_outputs) = self.step(&state, &u, dt.as_secs_f64());
         }
@@ -242,4 +217,43 @@ fn normalize_quaternion(mut state: State) -> State {
     state[8] = q_normalized[2];
     state[9] = q_normalized[3];
     state
+}
+
+fn write_csv_line<const O: usize>(
+    csv_writer: &mut csv::Writer<std::fs::File>,
+    t: u128,
+    state: State,
+    forces: Forces,
+    moments: Moments,
+    additional_outputs: nalgebra::SVector<f64, O>,
+) {
+    // modify this with additional outputs
+    let original_record = [
+        (t as f64 * 0.001),
+        state[0],
+        state[1],
+        state[2],
+        state[3],
+        state[4],
+        state[5],
+        state[6],
+        state[7],
+        state[8],
+        state[9],
+        state[10],
+        state[11],
+        state[12],
+        forces[0],
+        forces[1],
+        forces[2],
+        moments[0],
+        moments[1],
+        moments[2],
+    ];
+    let record = original_record
+        .iter()
+        .chain(additional_outputs.iter())
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>();
+    csv_writer.write_record(record).unwrap();
 }

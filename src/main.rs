@@ -8,11 +8,14 @@ fn main() {
     let mass = 1.0;
     let inertia = nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142);
     let mut body = RigidBody::new(gravity_model, mass, inertia);
-    body.set_output_file("output.csv");
 
     body.simulate(
         std::time::Duration::from_secs(10),
         std::time::Duration::from_millis(10),
+        nalgebra::Vector3::new(0.0, 0.0, 0.0),
+        nalgebra::Vector3::new(15.0 * std::f64::consts::PI / 180.0, 0.0, 0.0),
+        nalgebra::Vector3::new(0.0, 0.0, 0.0),
+        nalgebra::Vector3::new(0.0, 0.0, 0.0),
         |time| {
             if time < 5000 {
                 0.5 * 9.80665
@@ -20,5 +23,6 @@ fn main() {
                 0.0
             }
         },
+        Some("output.csv"),
     );
 }
