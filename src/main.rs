@@ -23,37 +23,17 @@ fn main() {
         0.0,
     ]);
     let mut body = RigidBody::new(gravity_model, mass, inertia, initial_state);
+    body.set_output_file("output.csv");
 
-    let mut csv_writer = csv::Writer::from_path("output.csv").unwrap();
-    csv_writer
-        .write_record(&[
-            "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
-        ])
-        .unwrap();
-
-    let dt = 0.01;
-    for i in 0..=1500 {
-        let state = body.get_state();
-        csv_writer
-            .write_record(&[
-                (i as f64 * dt).to_string(),
-                state[0].to_string(),
-                state[1].to_string(),
-                state[2].to_string(),
-                state[3].to_string(),
-                state[4].to_string(),
-                state[5].to_string(),
-                state[6].to_string(),
-                state[7].to_string(),
-                state[8].to_string(),
-                state[9].to_string(),
-                state[10].to_string(),
-                state[11].to_string(),
-                state[12].to_string(),
-            ])
-            .unwrap();
-        body.step(&(), dt);
-    }
-    let next_state = body.step(&(), 0.01);
-    println!("{:?}", next_state);
+    body.simulate(
+        std::time::Duration::from_secs(10),
+        std::time::Duration::from_millis(10),
+        |time| {
+            if time < 5000 {
+                9.80665
+            } else {
+                0.0
+            }
+        },
+    );
 }

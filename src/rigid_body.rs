@@ -34,6 +34,7 @@ pub struct RigidBody<M: DynamicsModel> {
     inertia_inverse: nalgebra::Matrix3<f64>,
     dynamics_model: M,
     state: State,
+    output_file: Option<csv::Writer<std::fs::File>>,
 }
 
 impl<M: DynamicsModel> RigidBody<M> {
@@ -51,12 +52,49 @@ impl<M: DynamicsModel> RigidBody<M> {
             inertia_inverse,
             dynamics_model,
             state: initial_state,
+            output_file: None,
         }
     }
 
-    pub fn get_state(&self) -> State {
-        self.state
+    pub fn set_output_file(&mut self, file_name: &str) {
+        if self.output_file.is_some() {
+            panic!("Output file is already set");
+        }
+        let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
+        csv_writer
+            .write_record(&[
+                "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
+            ])
+            .unwrap();
+        self.output_file = Some(csv_writer);
     }
+
+    fn write_csv_line(&mut self, t: u128) {
+        if let Some(ref mut csv_writer) = &mut self.output_file {
+            csv_writer
+                .write_record(&[
+                    (t as f64 * 0.001).to_string(),
+                    self.state[0].to_string(),
+                    self.state[1].to_string(),
+                    self.state[2].to_string(),
+                    self.state[3].to_string(),
+                    self.state[4].to_string(),
+                    self.state[5].to_string(),
+                    self.state[6].to_string(),
+                    self.state[7].to_string(),
+                    self.state[8].to_string(),
+                    self.state[9].to_string(),
+                    self.state[10].to_string(),
+                    self.state[11].to_string(),
+                    self.state[12].to_string(),
+                ])
+                .unwrap();
+        }
+    }
+
+    // pub fn get_state(&self) -> State {
+    //     self.state
+    // }
 
     fn compute_state_derivative(
         &self,
@@ -137,5 +175,22 @@ impl<M: DynamicsModel> RigidBody<M> {
     pub fn step(&mut self, control_input: &M::ControlInput, dt: f64) {
         self.state = self.runge_kutta_propagation(control_input, dt);
         self.normalize_quaternion();
+    }
+
+    pub fn simulate<F>(
+        &mut self,
+        duration: std::time::Duration,
+        dt: std::time::Duration,
+        control_input: F,
+    ) where
+        F: Fn(u128) -> M::ControlInput,
+    {
+        let steps = duration.as_millis() / dt.as_millis();
+        for i in 0..=steps {
+            let t = i * dt.as_millis();
+            self.write_csv_line(t);
+            let u = control_input(t);
+            self.step(&u, dt.as_secs_f64());
+        }
     }
 }
