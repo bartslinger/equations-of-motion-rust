@@ -8,7 +8,6 @@ fn main() {
     let mass = 1.0;
     let inertia = nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142);
     let mut body = RigidBody::new(gravity_model, mass, inertia);
-    body.set_state(3, 30.0 * std::f64::consts::PI / 180.0);
     body.set_output_file("output.csv");
 
     body.simulate(

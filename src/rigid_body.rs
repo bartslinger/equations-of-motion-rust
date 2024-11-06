@@ -16,6 +16,7 @@
 // }
 
 pub type State = nalgebra::SVector<f64, 13>;
+
 pub type StateDerivative = nalgebra::SVector<f64, 13>;
 
 pub type Forces = nalgebra::Vector3<f64>;
@@ -41,7 +42,6 @@ where
     inertia: nalgebra::Matrix3<f64>,
     inertia_inverse: nalgebra::Matrix3<f64>,
     dynamics_model: M,
-    state: State,
     output_file: Option<csv::Writer<std::fs::File>>,
 }
 
@@ -52,16 +52,11 @@ where
     pub fn new(dynamics_model: M, mass: f64, inertia: nalgebra::Matrix3<f64>) -> Self {
         let inertia_inverse = inertia.try_inverse().unwrap();
 
-        let initial_state = nalgebra::SVector::<f64, 13>::from([
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        ]);
-
         Self {
             mass,
             inertia,
             inertia_inverse,
             dynamics_model,
-            state: initial_state,
             output_file: None,
         }
     }
@@ -81,13 +76,10 @@ where
         self.output_file = Some(csv_writer);
     }
 
-    pub fn set_state(&mut self, index: usize, value: f64) {
-        self.state[index] = value;
-    }
-
     fn write_csv_line(
         &mut self,
         t: u128,
+        state: State,
         forces: Forces,
         moments: Moments,
         additional_outputs: nalgebra::SVector<f64, O>,
@@ -96,19 +88,19 @@ where
             // modify this with additional outputs
             let original_record = [
                 (t as f64 * 0.001),
-                self.state[0],
-                self.state[1],
-                self.state[2],
-                self.state[3],
-                self.state[4],
-                self.state[5],
-                self.state[6],
-                self.state[7],
-                self.state[8],
-                self.state[9],
-                self.state[10],
-                self.state[11],
-                self.state[12],
+                state[0],
+                state[1],
+                state[2],
+                state[3],
+                state[4],
+                state[5],
+                state[6],
+                state[7],
+                state[8],
+                state[9],
+                state[10],
+                state[11],
+                state[12],
                 forces[0],
                 forces[1],
                 forces[2],
@@ -189,42 +181,33 @@ where
 
     fn runge_kutta_propagation(
         &self,
+        state: &State,
         control_input: &M::ControlInput,
         dt: f64,
     ) -> (State, Forces, Moments, nalgebra::SVector<f64, O>) {
-        let (k1, f1, m1, a1) = self.compute_state_derivative(&self.state, control_input);
+        let (k1, f1, m1, a1) = self.compute_state_derivative(state, control_input);
         let (k2, f2, m2, a2) =
-            self.compute_state_derivative(&(self.state + k1 * dt / 2.0), control_input);
+            self.compute_state_derivative(&(state + k1 * dt / 2.0), control_input);
         let (k3, f3, m3, a3) =
-            self.compute_state_derivative(&(self.state + k2 * dt / 2.0), control_input);
-        let (k4, f4, m4, a4) =
-            self.compute_state_derivative(&(self.state + k3 * dt), control_input);
-        let next_state = self.state + (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt / 6.0;
+            self.compute_state_derivative(&(state + k2 * dt / 2.0), control_input);
+        let (k4, f4, m4, a4) = self.compute_state_derivative(&(state + k3 * dt), control_input);
+        let next_state = state + (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt / 6.0;
         let forces = (f1 + 2.0 * f2 + 2.0 * f3 + f4) / 6.0;
         let moments = (m1 + 2.0 * m2 + 2.0 * m3 + m4) / 6.0;
         let additional_outputs = (a1 + 2.0 * a2 + 2.0 * a3 + a4) / 6.0;
         (next_state, forces, moments, additional_outputs)
     }
 
-    fn normalize_quaternion(&mut self) {
-        let q = nalgebra::Vector4::new(self.state[6], self.state[7], self.state[8], self.state[9]);
-        let q_normalized = q.normalize();
-        self.state[6] = q_normalized[0];
-        self.state[7] = q_normalized[1];
-        self.state[8] = q_normalized[2];
-        self.state[9] = q_normalized[3];
-    }
-
     pub fn step(
         &mut self,
+        state: &State,
         control_input: &M::ControlInput,
         dt: f64,
     ) -> (State, Forces, Moments, nalgebra::SVector<f64, O>) {
         let (state, forces, moments, additional_outputs) =
-            self.runge_kutta_propagation(control_input, dt);
-        self.state = state;
-        self.normalize_quaternion();
-        (self.state, forces, moments, additional_outputs)
+            self.runge_kutta_propagation(state, control_input, dt);
+        let state = normalize_quaternion(state);
+        (state, forces, moments, additional_outputs)
     }
 
     pub fn simulate<F>(
@@ -235,14 +218,28 @@ where
     ) where
         F: Fn(u128) -> M::ControlInput,
     {
+        let initial_state = nalgebra::SVector::<f64, 13>::from([
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ]);
+
         let steps = duration.as_millis() / dt.as_millis();
-        let (_, mut forces, mut moments, mut additional_outputs) =
-            self.runge_kutta_propagation(&control_input(0), dt.as_secs_f64());
+        let (mut state, mut forces, mut moments, mut additional_outputs) =
+            self.runge_kutta_propagation(&initial_state, &control_input(0), dt.as_secs_f64());
         for i in 0..=steps {
             let t = i * dt.as_millis();
-            self.write_csv_line(t, forces, moments, additional_outputs);
+            self.write_csv_line(t, state, forces, moments, additional_outputs);
             let u = control_input(t);
-            (_, forces, moments, additional_outputs) = self.step(&u, dt.as_secs_f64());
+            (state, forces, moments, additional_outputs) = self.step(&state, &u, dt.as_secs_f64());
         }
     }
+}
+
+fn normalize_quaternion(mut state: State) -> State {
+    let q = nalgebra::Vector4::new(state[6], state[7], state[8], state[9]);
+    let q_normalized = q.normalize();
+    state[6] = q_normalized[0];
+    state[7] = q_normalized[1];
+    state[8] = q_normalized[2];
+    state[9] = q_normalized[3];
+    state
 }
