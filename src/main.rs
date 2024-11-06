@@ -1,4 +1,5 @@
 use crate::rigid_body::RigidBody;
+use std::f64::consts::PI;
 
 mod gravity_model;
 mod rigid_body;
@@ -13,8 +14,8 @@ fn main() {
         std::time::Duration::from_secs(10),
         std::time::Duration::from_millis(10),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
-        nalgebra::Vector3::new(15.0 * std::f64::consts::PI / 180.0, 0.0, 0.0),
-        nalgebra::Vector3::new(0.0, 0.0, 0.0),
+        nalgebra::Vector3::new(30.0 * PI / 180.0, 0.0, 0.0),
+        nalgebra::Vector3::new(45.0 * PI / 180.0, 0.0, 0.0),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
         |time| {
             if time < 5000 {

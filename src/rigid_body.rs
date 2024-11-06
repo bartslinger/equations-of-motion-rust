@@ -177,6 +177,25 @@ where
             csv_writer
         });
 
+        // calculate quaternion from initial roll, pitch, yaw rotation
+
+        let half_roll = initial_rotation[0] * 0.5;
+        let half_pitch = initial_rotation[1] * 0.5;
+        let half_yaw = initial_rotation[2] * 0.5;
+
+        let cos_roll = half_roll.cos();
+        let sin_roll = half_roll.sin();
+        let cos_pitch = half_pitch.cos();
+        let sin_pitch = half_pitch.sin();
+        let cos_yaw = half_yaw.cos();
+        let sin_yaw = half_yaw.sin();
+
+        // Calculate each quaternion component
+        let q0 = cos_roll * cos_pitch * cos_yaw + sin_roll * sin_pitch * sin_yaw;
+        let q1 = sin_roll * cos_pitch * cos_yaw - cos_roll * sin_pitch * sin_yaw;
+        let q2 = cos_roll * sin_pitch * cos_yaw + sin_roll * cos_pitch * sin_yaw;
+        let q3 = cos_roll * cos_pitch * sin_yaw - sin_roll * sin_pitch * cos_yaw;
+
         let initial_state = nalgebra::SVector::<f64, 13>::from([
             initial_velocity[0],
             initial_velocity[1],
@@ -184,10 +203,10 @@ where
             initial_angular_velocity[0],
             initial_angular_velocity[1],
             initial_angular_velocity[2],
-            1.0,
-            0.0,
-            0.0,
-            0.0,
+            q0,
+            q1,
+            q2,
+            q3,
             initial_position[0],
             initial_position[1],
             initial_position[2],
