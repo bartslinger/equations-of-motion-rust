@@ -7,7 +7,22 @@ fn main() {
     let gravity_model = gravity_model::GravityModel {};
     let mass = 1.0;
     let inertia = nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142);
-    let mut body = RigidBody::new(gravity_model, mass, inertia);
+    let initial_state = nalgebra::SVector::<f64, 13>::from([
+        0.0,
+        0.0,
+        0.0,
+        30.0 * std::f64::consts::PI / 180.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]);
+    let mut body = RigidBody::new(gravity_model, mass, inertia, initial_state);
 
     let mut csv_writer = csv::Writer::from_path("output.csv").unwrap();
     csv_writer
@@ -17,7 +32,7 @@ fn main() {
         .unwrap();
 
     let dt = 0.01;
-    for i in 0..=200 {
+    for i in 0..=1500 {
         let state = body.get_state();
         csv_writer
             .write_record(&[

@@ -23,6 +23,7 @@ pub trait DynamicsModel {
     fn compute_forces_and_moments(
         &self,
         state: &State,
+        rotation_matrix: &nalgebra::Matrix3<f64>,
         control_input: &Self::ControlInput,
     ) -> (f64, f64, f64, f64, f64, f64);
 }
@@ -36,11 +37,12 @@ pub struct RigidBody<M: DynamicsModel> {
 }
 
 impl<M: DynamicsModel> RigidBody<M> {
-    pub fn new(dynamics_model: M, mass: f64, inertia: nalgebra::Matrix3<f64>) -> Self {
-        let state = nalgebra::SVector::<f64, 13>::from([
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        ]);
-
+    pub fn new(
+        dynamics_model: M,
+        mass: f64,
+        inertia: nalgebra::Matrix3<f64>,
+        initial_state: State,
+    ) -> Self {
         let inertia_inverse = inertia.try_inverse().unwrap();
 
         Self {
@@ -48,7 +50,7 @@ impl<M: DynamicsModel> RigidBody<M> {
             inertia,
             inertia_inverse,
             dynamics_model,
-            state,
+            state: initial_state,
         }
     }
 
@@ -87,7 +89,7 @@ impl<M: DynamicsModel> RigidBody<M> {
 
         let (force_x, force_y, force_z, moment_x, moment_y, moment_z) = self
             .dynamics_model
-            .compute_forces_and_moments(state, control_input);
+            .compute_forces_and_moments(state, &rotation_matrix, control_input);
         let moments = nalgebra::Vector3::new(moment_x, moment_y, moment_z);
 
         let part1 = self.inertia * omega;
@@ -123,7 +125,17 @@ impl<M: DynamicsModel> RigidBody<M> {
         self.state + (k1 + 2.0 * k2 + 2.0 * k3 + k4) * dt / 6.0
     }
 
+    fn normalize_quaternion(&mut self) {
+        let q = nalgebra::Vector4::new(self.state[6], self.state[7], self.state[8], self.state[9]);
+        let q_normalized = q.normalize();
+        self.state[6] = q_normalized[0];
+        self.state[7] = q_normalized[1];
+        self.state[8] = q_normalized[2];
+        self.state[9] = q_normalized[3];
+    }
+
     pub fn step(&mut self, control_input: &M::ControlInput, dt: f64) {
         self.state = self.runge_kutta_propagation(control_input, dt);
+        self.normalize_quaternion();
     }
 }
