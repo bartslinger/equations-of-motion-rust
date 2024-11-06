@@ -16,7 +16,7 @@ fn main() {
         std::time::Duration::from_millis(10),
         |time| {
             if time < 5000 {
-                9.80665
+                0.5 * 9.80665
             } else {
                 0.0
             }

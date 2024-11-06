@@ -1,4 +1,4 @@
-use crate::rigid_body::{DynamicsModel, State};
+use crate::rigid_body::{DynamicsModel, Forces, Moments, State};
 
 const ADDITIONAL_OUTPUTS: usize = 1;
 pub struct GravityModel {}
@@ -13,24 +13,12 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for GravityModel {
         _state: &State,
         rotation_matrix: &nalgebra::Matrix3<f64>,
         control_input: &Self::ControlInput,
-    ) -> (
-        f64,
-        f64,
-        f64,
-        f64,
-        f64,
-        f64,
-        nalgebra::SVector<f64, ADDITIONAL_OUTPUTS>,
-    ) {
+    ) -> (Forces, Moments, nalgebra::SVector<f64, ADDITIONAL_OUTPUTS>) {
         let gravity =
             rotation_matrix.transpose() * nalgebra::Vector3::new(0.0, 0.0, 9.80665 - control_input);
         (
-            gravity[0],
-            gravity[1],
-            gravity[2],
-            0.0,
-            0.0,
-            0.0,
+            gravity,
+            nalgebra::Vector3::zeros(),
             nalgebra::SVector::<f64, ADDITIONAL_OUTPUTS>::from([*control_input]),
         )
     }
