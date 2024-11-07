@@ -2,8 +2,10 @@ use crate::rigid_body::{rotation_matrix_from_quaternion, RigidBody, State};
 use std::f64::consts::PI;
 
 mod gravity_model;
+mod rcam_model;
 mod rigid_body;
 
+#[allow(unused)]
 const STEP_INPUT: fn(u128) -> f64 = |time| {
     if time < 5000 {
         0.0
@@ -12,14 +14,17 @@ const STEP_INPUT: fn(u128) -> f64 = |time| {
     }
 };
 
+#[allow(unused)]
 struct TestController {
     integrator: f64,
 }
 impl TestController {
+    #[allow(unused)]
     fn new() -> Self {
         Self { integrator: 0.0 }
     }
 
+    #[allow(unused)]
     fn compute_control_input(&mut self, time_ms: u128, state: &State, dt: f64) -> f64 {
         let setpoint = STEP_INPUT(time_ms);
         let rotation_matrix =
@@ -34,22 +39,19 @@ impl TestController {
 }
 
 fn main() {
-    let gravity_model = gravity_model::GravityModel {};
-    let mut body = RigidBody::new(gravity_model);
-
-    let mut test_controller = TestController::new();
+    // let gravity_model = gravity_model::GravityModel {};
+    let rcam_model = rcam_model::RcamModel {};
+    let mut body = RigidBody::new(rcam_model);
 
     body.simulate(
-        std::time::Duration::from_secs(10),
+        std::time::Duration::from_secs(100),
+        // std::time::Duration::from_millis(10),
         std::time::Duration::from_millis(10),
-        nalgebra::Vector3::new(0.0, 0.0, 0.0),
+        nalgebra::Vector3::new(70.0, 0.0, 0.0),
         nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
         nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
-        |time_ms, state, dt| {
-            let control_input = test_controller.compute_control_input(time_ms, state, dt);
-            control_input
-        },
+        |_time_ms, _state, _dt| nalgebra::Vector5::new(0.0, 0.0, 0.5, 0.2, 0.2),
         Some("output.csv"),
     );
 }
