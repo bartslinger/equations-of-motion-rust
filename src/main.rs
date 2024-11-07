@@ -47,11 +47,11 @@ fn main() {
         std::time::Duration::from_secs(100),
         // std::time::Duration::from_millis(10),
         std::time::Duration::from_millis(10),
-        nalgebra::Vector3::new(70.0, 0.0, 0.0),
+        nalgebra::Vector3::new(84.9905, 0.0, 1.2713),
         nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
-        nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
+        nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0149, 0.0),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
-        |_time_ms, _state, _dt| nalgebra::Vector5::new(0.0, 0.0, 0.5, 0.2, 0.2),
+        |_time_ms, _state, _dt| nalgebra::Vector5::new(0.0, -0.178, 0.0, 0.0821, 0.0821),
         Some("output.csv"),
     );
 }
