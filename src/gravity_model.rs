@@ -19,7 +19,7 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for GravityModel {
 
         let gravity = rotation_matrix.transpose() * nalgebra::Vector3::new(0.0, 0.0, 9.80665);
         (
-            gravity,
+            gravity + upforce,
             nalgebra::Vector3::zeros(),
             nalgebra::SVector::<f64, ADDITIONAL_OUTPUTS>::from([*control_input, upforce.z]),
         )

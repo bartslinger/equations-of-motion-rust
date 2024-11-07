@@ -59,10 +59,6 @@ where
         }
     }
 
-    // pub fn get_state(&self) -> State {
-    //     self.state
-    // }
-
     fn compute_state_derivative(
         &self,
         state: &State,
@@ -76,18 +72,7 @@ where
         let velocity_body = nalgebra::Vector3::new(u, v, w);
         let omega = nalgebra::Vector3::new(p, q, r);
 
-        // Construct the rotation matrix from quaternion
-        let r11 = q0.powi(2) + q1.powi(2) - q2.powi(2) - q3.powi(2);
-        let r22 = q0.powi(2) - q1.powi(2) + q2.powi(2) - q3.powi(2);
-        let r33 = q0.powi(2) - q1.powi(2) - q2.powi(2) + q3.powi(2);
-        let r12 = 2.0 * (q1 * q2 - q0 * q3);
-        let r21 = 2.0 * (q1 * q2 + q0 * q3);
-        let r13 = 2.0 * (q1 * q3 + q0 * q2);
-        let r31 = 2.0 * (q1 * q3 - q0 * q2);
-        let r23 = 2.0 * (q2 * q3 - q0 * q1);
-        let r32 = 2.0 * (q2 * q3 + q0 * q1);
-        let rotation_matrix =
-            nalgebra::Matrix3::<f64>::new(r11, r12, r13, r21, r22, r23, r31, r32, r33);
+        let rotation_matrix = rotation_matrix_from_quaternion(q0, q1, q2, q3);
         // let inverse_rotation_matrix = rotation_matrix.transpose();
 
         let velocity_ned = rotation_matrix * velocity_body;
@@ -160,10 +145,10 @@ where
         initial_angular_velocity: nalgebra::Vector3<f64>,
         initial_rotation: nalgebra::Vector3<f64>,
         initial_position: nalgebra::Vector3<f64>,
-        control_input: F,
+        mut control_input: F,
         output_file_name: Option<&str>,
     ) where
-        F: Fn(u128) -> M::ControlInput,
+        F: FnMut(u128, &State, f64) -> M::ControlInput,
     {
         let mut csv_writer = output_file_name.map(|file_name| {
             let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
@@ -212,18 +197,19 @@ where
             initial_position[2],
         ]);
 
+        let dt_secs = dt.as_secs_f64();
         let steps = duration.as_millis() / dt.as_millis();
         let mut state = initial_state;
-        let (_, mut forces, mut moments, mut additional_outputs) =
-            self.compute_state_derivative(&initial_state, &control_input(0));
+        let (_state_derivative, mut forces, mut moments, mut additional_outputs) =
+            self.compute_state_derivative(&state, &control_input(0, &state, dt_secs));
 
         for i in 0..=steps {
             let t = i * dt.as_millis();
             if let Some(ref mut csv_writer) = csv_writer {
                 write_csv_line(csv_writer, t, state, forces, moments, additional_outputs);
             }
-            let u = control_input(t);
-            (state, forces, moments, additional_outputs) = self.step(&state, &u, dt.as_secs_f64());
+            let u = control_input(t, &state, dt_secs);
+            (state, forces, moments, additional_outputs) = self.step(&state, &u, dt_secs);
         }
     }
 }
@@ -275,4 +261,22 @@ fn write_csv_line<const O: usize>(
         .map(|x| x.to_string())
         .collect::<Vec<String>>();
     csv_writer.write_record(record).unwrap();
+}
+
+pub fn rotation_matrix_from_quaternion(
+    q0: f64,
+    q1: f64,
+    q2: f64,
+    q3: f64,
+) -> nalgebra::Matrix3<f64> {
+    let r11 = q0.powi(2) + q1.powi(2) - q2.powi(2) - q3.powi(2);
+    let r22 = q0.powi(2) - q1.powi(2) + q2.powi(2) - q3.powi(2);
+    let r33 = q0.powi(2) - q1.powi(2) - q2.powi(2) + q3.powi(2);
+    let r12 = 2.0 * (q1 * q2 - q0 * q3);
+    let r21 = 2.0 * (q1 * q2 + q0 * q3);
+    let r13 = 2.0 * (q1 * q3 + q0 * q2);
+    let r31 = 2.0 * (q1 * q3 - q0 * q2);
+    let r23 = 2.0 * (q2 * q3 - q0 * q1);
+    let r32 = 2.0 * (q2 * q3 + q0 * q1);
+    nalgebra::Matrix3::<f64>::new(r11, r12, r13, r21, r22, r23, r31, r32, r33)
 }
