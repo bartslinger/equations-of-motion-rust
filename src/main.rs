@@ -4,7 +4,7 @@ use std::f64::consts::PI;
 mod gravity_model;
 mod rigid_body;
 
-const step_input: fn(u128) -> f64 = |time| {
+const STEP_INPUT: fn(u128) -> f64 = |time| {
     if time < 5000 {
         0.0
     } else {
@@ -21,7 +21,7 @@ impl TestController {
     }
 
     fn compute_control_input(&mut self, time_ms: u128, state: &State, dt: f64) -> f64 {
-        let setpoint = step_input(time_ms);
+        let setpoint = STEP_INPUT(time_ms);
         let rotation_matrix =
             rotation_matrix_from_quaternion(state[6], state[7], state[8], state[9]);
         let velocity_ned = rotation_matrix * nalgebra::Vector3::new(state[0], state[1], state[2]);
@@ -35,9 +35,7 @@ impl TestController {
 
 fn main() {
     let gravity_model = gravity_model::GravityModel {};
-    let mass = 1.0;
-    let inertia = nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142);
-    let mut body = RigidBody::new(gravity_model, mass, inertia);
+    let mut body = RigidBody::new(gravity_model);
 
     let mut test_controller = TestController::new();
 

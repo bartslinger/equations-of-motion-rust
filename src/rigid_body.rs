@@ -25,6 +25,9 @@ pub type Moments = nalgebra::Vector3<f64>;
 pub trait DynamicsModel<const O: usize> {
     type ControlInput;
 
+    fn mass() -> f64;
+    fn inertia() -> nalgebra::Matrix3<f64>;
+
     fn output_names() -> [&'static str; O];
     fn compute_forces_and_moments(
         &self,
@@ -48,7 +51,9 @@ impl<M, const O: usize> RigidBody<M, O>
 where
     M: DynamicsModel<O>,
 {
-    pub fn new(dynamics_model: M, mass: f64, inertia: nalgebra::Matrix3<f64>) -> Self {
+    pub fn new(dynamics_model: M) -> Self {
+        let mass = M::mass();
+        let inertia = M::inertia();
         let inertia_inverse = inertia.try_inverse().unwrap();
 
         Self {
