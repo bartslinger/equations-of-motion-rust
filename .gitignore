@@ -1,5 +1,7 @@
 .ipynb_checkpoints
 *.csv
+pkg
+.DS_Store
 
 # Added by cargo
 
