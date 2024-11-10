@@ -5,11 +5,11 @@ pub struct GravityModel {}
 impl DynamicsModel<ADDITIONAL_OUTPUTS> for GravityModel {
     type ControlInput = f64; // as test, control input is an upwards force acting against gravity
 
-    fn mass() -> f64 {
+    fn mass(&self) -> f64 {
         1.0
     }
 
-    fn inertia() -> nalgebra::Matrix3<f64> {
+    fn inertia(&self) -> nalgebra::Matrix3<f64> {
         nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142)
     }
 

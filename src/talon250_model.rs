@@ -44,11 +44,11 @@ pub struct Talon250Model {}
 impl DynamicsModel<OUTPUTS> for Talon250Model {
     // https://github.com/clum/YouTube/blob/85e5e4e2c4815ee8e4893faabf2935f936ee2649/Controls28/RCAM_model.m
     type ControlInput = nalgebra::Vector5<f64>;
-    fn mass() -> f64 {
+    fn mass(&self) -> f64 {
         0.350
     }
 
-    fn inertia() -> nalgebra::Matrix3<f64> {
+    fn inertia(&self) -> nalgebra::Matrix3<f64> {
         // scale the rcam model before measuring Iyy and Izz
         // Ixx was measured on the talon 250
         let ratio = 0.004393121676710427 / 40.07;
@@ -202,7 +202,7 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
 
         let g_ned = nalgebra::Vector3::new(0.0, 0.0, G);
         let g_b = rotation_matrix.transpose() * g_ned;
-        let fg_b = Self::mass() * g_b;
+        let fg_b = self.mass() * g_b;
 
         let f_b = fg_b + fe_b + fa_b;
         let m_cg_b = ma_cg_b + me_cg_b;

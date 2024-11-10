@@ -15,6 +15,8 @@
 //     pd: f64,
 // }
 
+use crate::sim_output::SimOutput;
+
 pub type State = nalgebra::SVector<f64, 13>;
 
 pub type StateDerivative = nalgebra::SVector<f64, 13>;
@@ -25,8 +27,8 @@ pub type Moments = nalgebra::Vector3<f64>;
 pub trait DynamicsModel<const O: usize> {
     type ControlInput;
 
-    fn mass() -> f64;
-    fn inertia() -> nalgebra::Matrix3<f64>;
+    fn mass(&self) -> f64;
+    fn inertia(&self) -> nalgebra::Matrix3<f64>;
 
     fn output_names() -> [&'static str; O];
     fn compute_forces_and_moments(
@@ -52,8 +54,8 @@ where
     M: DynamicsModel<O>,
 {
     pub fn new(dynamics_model: M) -> Self {
-        let mass = M::mass();
-        let inertia = M::inertia();
+        let mass = dynamics_model.mass();
+        let inertia = dynamics_model.inertia();
         let inertia_inverse = inertia.try_inverse().unwrap();
 
         Self {
@@ -152,7 +154,8 @@ where
         initial_position: nalgebra::Vector3<f64>,
         mut control_input: F,
         output_file_name: Option<&str>,
-    ) where
+    ) -> SimOutput
+    where
         F: FnMut(u128, &State, f64) -> M::ControlInput,
     {
         let mut csv_writer = output_file_name.map(|file_name| {
@@ -205,17 +208,22 @@ where
         let dt_secs = dt.as_secs_f64();
         let steps = duration.as_millis() / dt.as_millis();
         let mut state = initial_state;
+
+        let mut sim_output = SimOutput::new();
         let (_state_derivative, mut forces, mut moments, mut additional_outputs) =
             self.compute_state_derivative(&state, &control_input(0, &state, dt_secs));
 
         for i in 0..=steps {
             let t = i * dt.as_millis();
+            sim_output.time.push(t as f64 * 0.001);
+            sim_output.states.push(state);
             if let Some(ref mut csv_writer) = csv_writer {
                 write_csv_line(csv_writer, t, state, forces, moments, additional_outputs);
             }
             let u = control_input(t, &state, dt_secs);
             (state, forces, moments, additional_outputs) = self.step(&state, &u, dt_secs);
         }
+        sim_output
     }
 }
 

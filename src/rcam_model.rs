@@ -44,12 +44,12 @@ pub struct RcamModel {}
 impl DynamicsModel<OUTPUTS> for RcamModel {
     // https://github.com/clum/YouTube/blob/85e5e4e2c4815ee8e4893faabf2935f936ee2649/Controls28/RCAM_model.m
     type ControlInput = nalgebra::Vector5<f64>;
-    fn mass() -> f64 {
+    fn mass(&self) -> f64 {
         120_000.0
     }
 
-    fn inertia() -> nalgebra::Matrix3<f64> {
-        RcamModel::mass()
+    fn inertia(&self) -> nalgebra::Matrix3<f64> {
+        self.mass()
             * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
     }
 
@@ -202,7 +202,7 @@ impl DynamicsModel<OUTPUTS> for RcamModel {
 
         let g_ned = nalgebra::Vector3::new(0.0, 0.0, G);
         let g_b = rotation_matrix.transpose() * g_ned;
-        let fg_b = Self::mass() * g_b;
+        let fg_b = self.mass() * g_b;
 
         let f_b = fg_b + fe_b + fa_b;
         let m_cg_b = ma_cg_b + me_cg_b;

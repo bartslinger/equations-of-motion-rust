@@ -1,3 +1,4 @@
+use crate::bifilar_pendulum_model::ModelParameters;
 use crate::rigid_body::{rotation_matrix_from_quaternion, RigidBody, State};
 use std::f64::consts::PI;
 
@@ -5,6 +6,7 @@ mod bifilar_pendulum_model;
 mod gravity_model;
 mod rcam_model;
 mod rigid_body;
+mod sim_output;
 mod talon250_model;
 
 #[allow(unused)]
@@ -61,7 +63,9 @@ fn main() {
     // let gravity_model = gravity_model::GravityModel {};
     // let rcam_model = rcam_model::RcamModel {};
     // let talon250_model = talon250_model::Talon250Model {};
-    let bifilar_pendulum_model = bifilar_pendulum_model::BifilarPendulumModel {};
+    let bifilar_pendulum_model = bifilar_pendulum_model::BifilarPendulumModel {
+        params: ModelParameters::default(),
+    };
     let mut body = RigidBody::new(bifilar_pendulum_model);
 
     body.simulate(

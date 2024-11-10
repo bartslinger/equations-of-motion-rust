@@ -1,23 +1,65 @@
 use crate::rigid_body::{DynamicsModel, Forces, Moments, State};
 
 const ADDITIONAL_OUTPUTS: usize = 4;
-pub struct BifilarPendulumModel {}
+
+pub struct ModelParameters {
+    pub mass: f64,
+    pub inertia: nalgebra::Matrix3<f64>,
+    pub spring1_xb: f64,
+    pub spring1_yb: f64,
+    pub spring1_zb: f64,
+    pub spring2_xb: f64,
+    pub spring2_yb: f64,
+    pub spring2_zb: f64,
+    pub spring1_xw: f64,
+    pub spring1_yw: f64,
+    pub spring1_zw: f64,
+    pub spring2_xw: f64,
+    pub spring2_yw: f64,
+    pub spring2_zw: f64,
+    pub spring1_length: f64,
+    pub spring2_length: f64,
+    pub spring_kp: f64,
+    pub spring_kd: f64,
+}
+
+impl Default for ModelParameters {
+    fn default() -> Self {
+        Self {
+            mass: 0.35,
+            inertia: nalgebra::Matrix3::new(0.001, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01),
+            spring1_xb: 0.06,
+            spring1_yb: 0.07 / 2.0,
+            spring1_zb: 0.0,
+            spring2_xb: 0.06,
+            spring2_yb: -0.07 / 2.0,
+            spring2_zb: 0.0,
+            spring1_xw: 0.0,
+            spring1_yw: 0.315 / 2.0,
+            spring1_zw: -3.0,
+            spring2_xw: 0.0,
+            spring2_yw: -0.315 / 2.0,
+            spring2_zw: -3.0,
+            spring1_length: 1.65,
+            spring2_length: 1.65,
+            spring_kp: 800.0,
+            spring_kd: 22.0,
+        }
+    }
+}
+
+pub struct BifilarPendulumModel {
+    pub params: ModelParameters,
+}
 impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
     type ControlInput = (); // as test, control input is an upwards force acting against gravity
 
-    fn mass() -> f64 {
-        0.35
+    fn mass(&self) -> f64 {
+        self.params.mass
     }
 
-    fn inertia() -> nalgebra::Matrix3<f64> {
-        // measurement on Ixx on the talon 250
-        // let's see if we can reproduce the oscillation period of 1.83 s
-        // let ratio = 0.004393121676710427 / 40.07;
-        // ratio * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
-        nalgebra::Matrix3::new(
-            // 0.004393121676710427,
-            0.001, 0.0, 0.0, 0.0, 100.0, 0.0, 0.0, 0.0, 100.0,
-        )
+    fn inertia(&self) -> nalgebra::Matrix3<f64> {
+        self.params.inertia
     }
 
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
@@ -34,25 +76,37 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
         let v_b = nalgebra::Vector3::new(state[0], state[1], state[2]);
         let r_ib = rotation_matrix;
         let r_bi = r_ib.transpose();
-        let gravity_b = r_bi * Self::mass() * nalgebra::Vector3::new(0.0, 0.0, 9.80665);
+        let gravity_b = r_bi * self.mass() * nalgebra::Vector3::new(0.0, 0.0, 9.80665);
 
         // we try first with a super strong damped spring, instead of a rigid string
         // so the dynamics of the spring should be much faster than the expected oscillation period
         // of 1.8s
 
-        // the string is attached to the body 7cm in front of CG and 3.5cm to the left/right
-        const Y_ATTACH: f64 = 0.07 / 2.0;
-        // const Y_ATTACH: f64 = 0.315 / 2.0;
-        let r_attach1_b = nalgebra::Vector3::new(0.06, Y_ATTACH, 0.0);
-        let r_attach2_b = nalgebra::Vector3::new(0.06, -Y_ATTACH, 0.0);
+        let r_attach1_b = nalgebra::Vector3::new(
+            self.params.spring1_xb,
+            self.params.spring1_yb,
+            self.params.spring1_zb,
+        );
+        let r_attach2_b = nalgebra::Vector3::new(
+            self.params.spring2_xb,
+            self.params.spring2_yb,
+            self.params.spring2_zb,
+        );
         // let r_attach1_b = nalgebra::Vector3::new(0.06, 0.0, Y_ATTACH);
         // let r_attach2_b = nalgebra::Vector3::new(0.06, 0.0, -Y_ATTACH);
 
         // the string is attached to the north/east in the NED frame
         // the distance between the two strings is 31.5cm
-        const E_ATTACH: f64 = 0.315 / 2.0;
-        let r_origin1_ned = nalgebra::Vector3::new(0.0, E_ATTACH, 0.0);
-        let r_origin2_ned = nalgebra::Vector3::new(0.0, -E_ATTACH, 0.0);
+        let r_origin1_ned = nalgebra::Vector3::new(
+            self.params.spring1_xw,
+            self.params.spring1_yw,
+            self.params.spring1_zw,
+        );
+        let r_origin2_ned = nalgebra::Vector3::new(
+            self.params.spring2_xw,
+            self.params.spring2_yw,
+            self.params.spring2_zw,
+        );
 
         let r_origin1_cg_ned = r_origin1_ned - r_cg_ned;
         let r_origin2_cg_ned = r_origin2_ned - r_cg_ned;
@@ -68,11 +122,12 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
         let v_spring1_b = v_b.dot(&r_spring1_b.normalize());
         let v_spring2_b = v_b.dot(&r_spring2_b.normalize());
 
-        let kp = 800.0;
-        let kd = 22.0;
-        const L_SPRING: f64 = 1.65;
-        let spring1_force = -kp * (L_SPRING - r_spring1_b.norm()) - kd * v_spring1_b;
-        let spring2_force = -kp * (L_SPRING - r_spring2_b.norm()) - kd * v_spring2_b;
+        let spring1_force = -self.params.spring_kp
+            * (self.params.spring1_length - r_spring1_b.norm())
+            - self.params.spring_kd * v_spring1_b;
+        let spring2_force = -self.params.spring_kp
+            * (self.params.spring2_length - r_spring2_b.norm())
+            - self.params.spring_kd * v_spring2_b;
 
         let f_spring1_b = r_spring1_b.normalize() * spring1_force;
         let f_spring2_b = r_spring2_b.normalize() * spring2_force;
