@@ -2,6 +2,7 @@ use crate::rigid_body::{DynamicsModel, Forces, Moments, State};
 
 const ADDITIONAL_OUTPUTS: usize = 4;
 
+#[derive(Debug)]
 pub struct ModelParameters {
     pub mass: f64,
     pub inertia: nalgebra::Matrix3<f64>,
@@ -21,6 +22,8 @@ pub struct ModelParameters {
     pub spring2_length: f64,
     pub spring_kp: f64,
     pub spring_kd: f64,
+    pub velocity_damping: nalgebra::Vector3<f64>,
+    pub rotation_rate_damping: nalgebra::Vector3<f64>,
 }
 
 impl Default for ModelParameters {
@@ -44,6 +47,8 @@ impl Default for ModelParameters {
             spring2_length: 1.65,
             spring_kp: 800.0,
             spring_kd: 22.0,
+            velocity_damping: nalgebra::Vector3::new(0.0, 0.0, 0.0),
+            rotation_rate_damping: nalgebra::Vector3::new(0.0, 0.0, 0.0),
         }
     }
 }
@@ -136,11 +141,21 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
         let m_spring1_b = r_attach1_b.cross(&f_spring1_b);
         let m_spring2_b = r_attach2_b.cross(&f_spring2_b);
 
-        // let m_damp = nalgebra::Vector3::new(-0.001 * state[3], 0.0, 0.0);
+        let f_damp = nalgebra::Vector3::new(
+            -self.params.velocity_damping[0] * state[0],
+            -self.params.velocity_damping[1] * state[1],
+            -self.params.velocity_damping[2] * state[2],
+        );
+
+        let m_damp = nalgebra::Vector3::new(
+            -self.params.rotation_rate_damping[0] * state[3],
+            -self.params.rotation_rate_damping[1] * state[4],
+            -self.params.rotation_rate_damping[2] * state[5],
+        );
 
         (
-            gravity_b + f_spring1_b + f_spring2_b,
-            nalgebra::Vector3::zeros() + m_spring1_b + m_spring2_b,
+            gravity_b + f_spring1_b + f_spring2_b + f_damp,
+            nalgebra::Vector3::zeros() + m_spring1_b + m_spring2_b + m_damp,
             nalgebra::SVector::<f64, ADDITIONAL_OUTPUTS>::new(
                 r_spring1_b.norm(),
                 r_spring2_b.norm(),

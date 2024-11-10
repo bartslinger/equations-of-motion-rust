@@ -7,6 +7,14 @@ use crate::sim_output::SimOutput;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+#[wasm_bindgen]
 pub fn run_bifilar_pendulum_simulation(
     duration_seconds: u32,
     dt_millis: u32,
@@ -19,6 +27,8 @@ pub fn run_bifilar_pendulum_simulation(
     spring_lengths: &[f64],
     initial_state: &[f64],
     spring_gains: &[f64],
+    velocity_damping: &[f64],
+    rotation_rate_damping: &[f64],
 ) -> SimOutput {
     let bifilar_pendulum_model = BifilarPendulumModel {
         params: ModelParameters {
@@ -43,6 +53,16 @@ pub fn run_bifilar_pendulum_simulation(
             spring2_length: spring_lengths[1],
             spring_kp: spring_gains[0],
             spring_kd: spring_gains[1],
+            velocity_damping: nalgebra::Vector3::new(
+                velocity_damping[0],
+                velocity_damping[1],
+                velocity_damping[2],
+            ),
+            rotation_rate_damping: nalgebra::Vector3::new(
+                rotation_rate_damping[0],
+                rotation_rate_damping[1],
+                rotation_rate_damping[2],
+            ),
         },
     };
     let mut body = rigid_body::RigidBody::new(bifilar_pendulum_model);
