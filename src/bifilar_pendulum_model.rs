@@ -1,5 +1,6 @@
 use crate::rigid_body::{DynamicsModel, Forces, Moments, State};
 
+const INPUTS: usize = 0;
 const ADDITIONAL_OUTPUTS: usize = 4;
 
 #[derive(Debug)]
@@ -56,15 +57,17 @@ impl Default for ModelParameters {
 pub struct BifilarPendulumModel {
     pub params: ModelParameters,
 }
-impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
-    type ControlInput = (); // as test, control input is an upwards force acting against gravity
-
+impl DynamicsModel<INPUTS, ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
     fn mass(&self) -> f64 {
         self.params.mass
     }
 
     fn inertia(&self) -> nalgebra::Matrix3<f64> {
         self.params.inertia
+    }
+
+    fn input_names() -> [&'static str; INPUTS] {
+        []
     }
 
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
@@ -75,7 +78,7 @@ impl DynamicsModel<ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
         &self,
         state: &State,
         rotation_matrix: &nalgebra::Matrix3<f64>,
-        _control_input: &Self::ControlInput,
+        _control_input: &nalgebra::SVector<f64, INPUTS>,
     ) -> (Forces, Moments, nalgebra::SVector<f64, ADDITIONAL_OUTPUTS>) {
         let r_cg_ned = nalgebra::Vector3::new(state[10], state[11], state[12]);
         let v_b = nalgebra::Vector3::new(state[0], state[1], state[2]);

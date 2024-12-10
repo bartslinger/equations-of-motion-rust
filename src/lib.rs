@@ -75,7 +75,7 @@ pub fn run_bifilar_pendulum_simulation(
         nalgebra::Vector3::new(initial_state[6], initial_state[7], initial_state[8]),
         // nalgebra::Vector3::new(0.0, 0.0, 1.7155),
         nalgebra::Vector3::new(initial_state[9], initial_state[10], initial_state[11]),
-        |_time_ms, _state, _dt| (),
+        |_time_ms, _state, _dt| nalgebra::SVector::<f64, 0>::zeros(),
         None,
     );
     sim_output.clone()

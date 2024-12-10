@@ -24,24 +24,23 @@ pub type StateDerivative = nalgebra::SVector<f64, 13>;
 pub type Forces = nalgebra::Vector3<f64>;
 pub type Moments = nalgebra::Vector3<f64>;
 
-pub trait DynamicsModel<const O: usize> {
-    type ControlInput;
-
+pub trait DynamicsModel<const INPUTS: usize, const ADDITIONAL_OUTPUTS: usize> {
     fn mass(&self) -> f64;
     fn inertia(&self) -> nalgebra::Matrix3<f64>;
 
-    fn output_names() -> [&'static str; O];
+    fn input_names() -> [&'static str; INPUTS];
+    fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS];
     fn compute_forces_and_moments(
         &self,
         state: &State,
         rotation_matrix: &nalgebra::Matrix3<f64>,
-        control_input: &Self::ControlInput,
-    ) -> (Forces, Moments, nalgebra::SVector<f64, O>);
+        control_input: &nalgebra::SVector<f64, INPUTS>,
+    ) -> (Forces, Moments, nalgebra::SVector<f64, ADDITIONAL_OUTPUTS>);
 }
 
-pub struct RigidBody<M, const O: usize>
+pub struct RigidBody<M, const I: usize, const O: usize>
 where
-    M: DynamicsModel<O>,
+    M: DynamicsModel<I, O>,
 {
     mass: f64,
     inertia: nalgebra::Matrix3<f64>,
@@ -49,9 +48,9 @@ where
     dynamics_model: M,
 }
 
-impl<M, const O: usize> RigidBody<M, O>
+impl<M, const I: usize, const O: usize> RigidBody<M, I, O>
 where
-    M: DynamicsModel<O>,
+    M: DynamicsModel<I, O>,
 {
     pub fn new(dynamics_model: M) -> Self {
         let mass = dynamics_model.mass();
@@ -69,7 +68,7 @@ where
     fn compute_state_derivative(
         &self,
         state: &State,
-        control_input: &M::ControlInput,
+        control_input: &nalgebra::SVector<f64, I>,
     ) -> (StateDerivative, Forces, Moments, nalgebra::SVector<f64, O>) {
         let (u, v, w) = (state[0], state[1], state[2]);
         let (p, q, r) = (state[3], state[4], state[5]);
@@ -116,7 +115,7 @@ where
     fn runge_kutta_propagation(
         &self,
         state: &State,
-        control_input: &M::ControlInput,
+        control_input: &nalgebra::SVector<f64, I>,
         dt: f64,
     ) -> (State, Forces, Moments, nalgebra::SVector<f64, O>) {
         let (k1, f1, m1, a1) = self.compute_state_derivative(state, control_input);
@@ -135,7 +134,7 @@ where
     pub fn step(
         &mut self,
         state: &State,
-        control_input: &M::ControlInput,
+        control_input: &nalgebra::SVector<f64, I>,
         dt: f64,
     ) -> (State, Forces, Moments, nalgebra::SVector<f64, O>) {
         let (state, forces, moments, additional_outputs) =
@@ -156,15 +155,17 @@ where
         output_file_name: Option<&str>,
     ) -> SimOutput
     where
-        F: FnMut(u128, &State, f64) -> M::ControlInput,
+        F: FnMut(u128, &State, f64) -> nalgebra::SVector<f64, I>,
     {
         let mut csv_writer = output_file_name.map(|file_name| {
             let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
             let additional_outputs = M::output_names();
+            let inputs = M::input_names();
             let mut headers = vec![
                 "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
                 "Fx", "Fy", "Fz", "Mx", "My", "Mz",
             ];
+            headers.extend(inputs.iter());
             headers.extend(additional_outputs.iter());
             csv_writer.write_record(&headers).unwrap();
             csv_writer
@@ -210,17 +211,18 @@ where
         let mut state = initial_state;
 
         let mut sim_output = SimOutput::new();
+        let mut u = control_input(0, &state, dt_secs);
         let (_state_derivative, mut forces, mut moments, mut additional_outputs) =
-            self.compute_state_derivative(&state, &control_input(0, &state, dt_secs));
+            self.compute_state_derivative(&state, &u);
 
         for i in 0..=steps {
             let t = i * dt.as_millis();
             sim_output.time.push(t as f64 * 0.001);
             sim_output.states.push(state);
+            u = control_input(t, &state, dt_secs);
             if let Some(ref mut csv_writer) = csv_writer {
-                write_csv_line(csv_writer, t, state, forces, moments, additional_outputs);
+                write_csv_line(csv_writer, t, state, forces, moments, u, additional_outputs);
             }
-            let u = control_input(t, &state, dt_secs);
             (state, forces, moments, additional_outputs) = self.step(&state, &u, dt_secs);
         }
         sim_output
@@ -237,12 +239,13 @@ fn normalize_quaternion(mut state: State) -> State {
     state
 }
 
-fn write_csv_line<const O: usize>(
+fn write_csv_line<const I: usize, const O: usize>(
     csv_writer: &mut csv::Writer<std::fs::File>,
     t: u128,
     state: State,
     forces: Forces,
     moments: Moments,
+    inputs: nalgebra::SVector<f64, I>,
     additional_outputs: nalgebra::SVector<f64, O>,
 ) {
     // modify this with additional outputs
@@ -270,6 +273,7 @@ fn write_csv_line<const O: usize>(
     ];
     let record = original_record
         .iter()
+        .chain(inputs.iter())
         .chain(additional_outputs.iter())
         .map(|x| x.to_string())
         .collect::<Vec<String>>();
