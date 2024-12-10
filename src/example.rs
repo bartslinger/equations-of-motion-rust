@@ -61,24 +61,24 @@ fn main() {
         nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
         nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0 * PI / 180.0, 0.0),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
-        |time_ms, state, dt| {
+        |_time_ms, state, dt| {
             // use a control law to find the trim point
             let (u, v, w) = (state[0], state[1], state[2]);
 
             // euler angles roll pitch yaw
             let q = nalgebra::Quaternion::new(state[6], state[7], state[8], state[9]);
-            let (roll, pitch, yaw) = nalgebra::UnitQuaternion::from_quaternion(q).euler_angles();
+            let (_roll, pitch, _yaw) = nalgebra::UnitQuaternion::from_quaternion(q).euler_angles();
 
             // simple pitch control
             let pitch_error = 0.0 - pitch;
             pitch_integrator += -0.8 * pitch_error * dt;
             let d_e = -1.0 * pitch_error + pitch_integrator;
 
-            let Va = nalgebra::Vector3::new(u, v, w).norm();
-            let V_err = 90.0 - Va;
-            throttle_integrator += V_err * dt;
+            let v_a = nalgebra::Vector3::new(u, v, w).norm();
+            let v_err = 90.0 - v_a;
+            throttle_integrator += v_err * dt;
             // simple throttle control
-            let throttle = 0.6 + 0.6 * V_err + 0.5 * throttle_integrator;
+            let throttle = 0.6 + 0.6 * v_err + 0.5 * throttle_integrator;
             let d_th = throttle.min(1.0).max(0.0);
 
             nalgebra::SVector::<f64, 5>::new(0.0, d_e, 0.0, d_th, d_th)

@@ -1,7 +1,8 @@
 use crate::rigid_body::{DynamicsModel, Forces, Moments, State};
 use std::f64::consts::PI;
 
-const OUTPUTS: usize = 2;
+const INPUTS: usize = 5;
+const ADDITIONAL_OUTPUTS: usize = 2;
 
 // Constants
 const CBAR: f64 = 0.125; // Mean Aerodynamic Chord (m)
@@ -42,9 +43,8 @@ const ALPHA_SWITCH: f64 = 14.5 * (PI / 180.0); // alpha where lift slope goes fr
 
 pub struct Talon250Model {}
 
-impl DynamicsModel<OUTPUTS> for Talon250Model {
+impl DynamicsModel<INPUTS, ADDITIONAL_OUTPUTS> for Talon250Model {
     // https://github.com/clum/YouTube/blob/85e5e4e2c4815ee8e4893faabf2935f936ee2649/Controls28/RCAM_model.m
-    type ControlInput = nalgebra::Vector5<f64>;
     fn mass(&self) -> f64 {
         0.350
     }
@@ -52,11 +52,11 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
     fn inertia(&self) -> nalgebra::Matrix3<f64> {
         // scale the rcam model before measuring Iyy and Izz
         // Ixx was measured on the talon 250
-        let ratio = 0.001 / 40.07;
+        let _ratio = 0.001 / 40.07;
         1.0 * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
     }
 
-    fn output_names() -> [&'static str; OUTPUTS] {
+    fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
         ["Va", "alpha"]
     }
 
@@ -64,8 +64,8 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
         &self,
         state: &State,
         rotation_matrix: &nalgebra::Matrix3<f64>,
-        control_input: &Self::ControlInput,
-    ) -> (Forces, Moments, nalgebra::SVector<f64, OUTPUTS>) {
+        control_input: &nalgebra::SVector<f64, INPUTS>,
+    ) -> (Forces, Moments, nalgebra::SVector<f64, ADDITIONAL_OUTPUTS>) {
         let (u, v, w) = (state[0], state[1], state[2]);
         let (p, q, r) = (state[3], state[4], state[5]);
 
@@ -213,7 +213,7 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
             // nalgebra::Vector3::zeros(),
             f_b,
             m_cg_b,
-            nalgebra::SVector::<f64, OUTPUTS>::new(va, alpha),
+            nalgebra::SVector::<f64, ADDITIONAL_OUTPUTS>::new(va, alpha),
         )
     }
 }
