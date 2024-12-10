@@ -28,6 +28,7 @@ pub trait DynamicsModel<const INPUTS: usize, const ADDITIONAL_OUTPUTS: usize> {
     fn mass(&self) -> f64;
     fn inertia(&self) -> nalgebra::Matrix3<f64>;
 
+    fn input_names() -> [&'static str; INPUTS];
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS];
     fn compute_forces_and_moments(
         &self,
@@ -159,10 +160,12 @@ where
         let mut csv_writer = output_file_name.map(|file_name| {
             let mut csv_writer = csv::Writer::from_path(file_name).unwrap();
             let additional_outputs = M::output_names();
+            let inputs = M::input_names();
             let mut headers = vec![
                 "time", "u", "v", "w", "p", "q", "r", "q0", "q1", "q2", "q3", "pn", "pe", "pd",
                 "Fx", "Fy", "Fz", "Mx", "My", "Mz",
             ];
+            headers.extend(inputs.iter());
             headers.extend(additional_outputs.iter());
             csv_writer.write_record(&headers).unwrap();
             csv_writer
@@ -208,17 +211,18 @@ where
         let mut state = initial_state;
 
         let mut sim_output = SimOutput::new();
+        let mut u = control_input(0, &state, dt_secs);
         let (_state_derivative, mut forces, mut moments, mut additional_outputs) =
-            self.compute_state_derivative(&state, &control_input(0, &state, dt_secs));
+            self.compute_state_derivative(&state, &u);
 
         for i in 0..=steps {
             let t = i * dt.as_millis();
             sim_output.time.push(t as f64 * 0.001);
             sim_output.states.push(state);
+            u = control_input(t, &state, dt_secs);
             if let Some(ref mut csv_writer) = csv_writer {
-                write_csv_line(csv_writer, t, state, forces, moments, additional_outputs);
+                write_csv_line(csv_writer, t, state, forces, moments, u, additional_outputs);
             }
-            let u = control_input(t, &state, dt_secs);
             (state, forces, moments, additional_outputs) = self.step(&state, &u, dt_secs);
         }
         sim_output
@@ -235,12 +239,13 @@ fn normalize_quaternion(mut state: State) -> State {
     state
 }
 
-fn write_csv_line<const O: usize>(
+fn write_csv_line<const I: usize, const O: usize>(
     csv_writer: &mut csv::Writer<std::fs::File>,
     t: u128,
     state: State,
     forces: Forces,
     moments: Moments,
+    inputs: nalgebra::SVector<f64, I>,
     additional_outputs: nalgebra::SVector<f64, O>,
 ) {
     // modify this with additional outputs
@@ -268,6 +273,7 @@ fn write_csv_line<const O: usize>(
     ];
     let record = original_record
         .iter()
+        .chain(inputs.iter())
         .chain(additional_outputs.iter())
         .map(|x| x.to_string())
         .collect::<Vec<String>>();

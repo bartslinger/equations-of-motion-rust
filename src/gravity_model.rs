@@ -12,6 +12,10 @@ impl DynamicsModel<INPUTS, ADDITIONAL_OUTPUTS> for GravityModel {
         nalgebra::Matrix3::new(0.0135, 0.0, 0.0, 0.0, 0.0010, 0.0, 0.0, 0.0, 0.0142)
     }
 
+    fn input_names() -> [&'static str; INPUTS] {
+        ["control_input"]
+    }
+
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
         ["control_input", "upforce"]
     }

@@ -66,6 +66,10 @@ impl DynamicsModel<INPUTS, ADDITIONAL_OUTPUTS> for BifilarPendulumModel {
         self.params.inertia
     }
 
+    fn input_names() -> [&'static str; INPUTS] {
+        []
+    }
+
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
         ["L_spring1", "L_spring2", "F_spring1", "F_spring2"]
     }

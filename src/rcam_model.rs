@@ -53,6 +53,10 @@ impl DynamicsModel<INPUTS, ADDITIONAL_OUTPUTS> for RcamModel {
             * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
     }
 
+    fn input_names() -> [&'static str; INPUTS] {
+        ["d_a", "d_t", "d_r", "d_th1", "d_th2"]
+    }
+
     fn output_names() -> [&'static str; ADDITIONAL_OUTPUTS] {
         ["Va", "alpha"]
     }
