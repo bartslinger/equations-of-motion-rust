@@ -12,11 +12,12 @@ const B: f64 = 0.6; // Wing span (m)
 // slightly over-estimated (wing is not perfect rectangle)
 const S: f64 = CBAR * B; // Wing planform area (m^2)
 const S_TAIL: f64 = 0.21 * 0.06; // Tail planform area (m^2)
-const X_CG: f64 = 0.027; // x position of CoG wrt leading edge (m)
+const X_CG: f64 = -0.027; // x position of CoG wrt leading edge (m)
 const Y_CG: f64 = 0.0; // y position of CoG wrt leading edge (m)
 const Z_CG: f64 = 0.03; // z position of CoG wrt leading edge (m)
 
-const X_AC: f64 = 0.5 * CBAR; // x position of aerodynamic center wrt leading edge (m)
+// const X_AC: f64 = 0.5 * CBAR; // x position of aerodynamic center wrt leading edge (m)
+const X_AC: f64 = -0.05; // x position of aerodynamic center wrt leading edge (m)
 const Y_AC: f64 = 0.0; // y position of aerodynamic center wrt leading edge (m)
 const Z_AC: f64 = 0.0; // z position of aerodynamic center wrt leading edge (m)
 
@@ -51,8 +52,8 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
     fn inertia(&self) -> nalgebra::Matrix3<f64> {
         // scale the rcam model before measuring Iyy and Izz
         // Ixx was measured on the talon 250
-        let ratio = 0.004393121676710427 / 40.07;
-        ratio * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
+        let ratio = 0.001 / 40.07;
+        1.0 * nalgebra::Matrix3::new(40.07, 0.0, -2.0923, 0.0, 64.0, 0.0, -2.0923, 0.0, 99.92)
     }
 
     fn output_names() -> [&'static str; OUTPUTS] {
@@ -208,6 +209,8 @@ impl DynamicsModel<OUTPUTS> for Talon250Model {
         let m_cg_b = ma_cg_b + me_cg_b;
 
         (
+            // nalgebra::Vector3::zeros(),
+            // nalgebra::Vector3::zeros(),
             f_b,
             m_cg_b,
             nalgebra::SVector::<f64, OUTPUTS>::new(va, alpha),

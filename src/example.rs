@@ -1,4 +1,3 @@
-use crate::bifilar_pendulum_model::ModelParameters;
 use crate::rigid_body::{rotation_matrix_from_quaternion, RigidBody, State};
 use std::f64::consts::PI;
 
@@ -43,41 +42,47 @@ impl TestController {
 }
 
 fn main() {
-    // // test calculation
-    // // Inertia = MgT^2b^2 / 4 pi^2 L
-    // let t: f64 = 1.833;
-    // let r: f64 = 0.315 / 2.0;
-    // let l: f64 = 1.65;
-    // let m = 0.350;
-    // let g = 9.80665;
-    // let ixx = (m * g * t.powi(2) * r.powi(2)) / (4.0 * PI.powi(2) * l);
-    // println!("Ixx calculated: {}", ixx);
-    //
-    // // expected T for Ixx = 0.05
-    // let t = (2.0 * PI / r) * (l * 0.05 / (m * g)).sqrt();
-    // println!("Expected period: {}", t);
-    // // inverse calculation as check
-    // let ixx = (m * g * t.powi(2) * r.powi(2)) / (4.0 * PI.powi(2) * l);
-    // println!("Ixx calculated: {}", ixx);
+    // let model = gravity_model::GravityModel {};
+    let model = rcam_model::RcamModel {};
+    // let model = talon250_model::Talon250Model {};
+    // let model = bifilar_pendulum_model::BifilarPendulumModel {
+    //     params: ModelParameters::default(),
+    // };
 
-    // let gravity_model = gravity_model::GravityModel {};
-    // let rcam_model = rcam_model::RcamModel {};
-    // let talon250_model = talon250_model::Talon250Model {};
-    let bifilar_pendulum_model = bifilar_pendulum_model::BifilarPendulumModel {
-        params: ModelParameters::default(),
-    };
-    let mut body = RigidBody::new(bifilar_pendulum_model);
+    let mut body = RigidBody::new(model);
+
+    let mut throttle_integrator: f64 = 0.0;
+    let mut pitch_integrator: f64 = 0.0;
 
     body.simulate(
-        std::time::Duration::from_secs(15),
-        // std::time::Duration::from_millis(10),
-        std::time::Duration::from_millis(1),
+        std::time::Duration::from_secs(50),
+        std::time::Duration::from_millis(10),
+        nalgebra::Vector3::new(90.0, 0.0, 0.0),
+        nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0, 0.0),
+        nalgebra::Vector3::new(0.0 * PI / 180.0, 0.0 * PI / 180.0, 0.0),
         nalgebra::Vector3::new(0.0, 0.0, 0.0),
-        nalgebra::Vector3::new(10.0 * PI / 180.0, 0.0, 0.0),
-        nalgebra::Vector3::new(0.0 * PI / 180.0, 90.0 * PI / 180.0, 0.0),
-        // nalgebra::Vector3::new(0.0, 0.0, 1.7155),
-        nalgebra::Vector3::new(0.0, 0.0, 1.72),
-        |_time_ms, _state, _dt| (),
+        |time_ms, state, dt| {
+            // use a control law to find the trim point
+            let (u, v, w) = (state[0], state[1], state[2]);
+
+            // euler angles roll pitch yaw
+            let q = nalgebra::Quaternion::new(state[6], state[7], state[8], state[9]);
+            let (roll, pitch, yaw) = nalgebra::UnitQuaternion::from_quaternion(q).euler_angles();
+
+            // simple pitch control
+            let pitch_error = 0.0 - pitch;
+            pitch_integrator += -0.8 * pitch_error * dt;
+            let d_e = -1.0 * pitch_error + pitch_integrator;
+
+            let Va = nalgebra::Vector3::new(u, v, w).norm();
+            let V_err = 90.0 - Va;
+            throttle_integrator += V_err * dt;
+            // simple throttle control
+            let throttle = 0.6 + 0.6 * V_err + 0.5 * throttle_integrator;
+            let d_th = throttle.min(1.0).max(0.0);
+
+            nalgebra::SVector::<f64, 5>::new(0.0, d_e, 0.0, d_th, d_th)
+        },
         Some("output.csv"),
     );
 }
